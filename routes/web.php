@@ -22,10 +22,13 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard', function () {
-        return match (Auth::user()->role) {
+        $role = Auth::user()->role;
+
+        return match ($role) {
             RoleEnum::Admin => redirect()->route('admin.dashboard.index'),
             RoleEnum::Cashier => redirect()->route('cashier.dashboard.index'),
             RoleEnum::Staff => redirect()->route('staff.dashboard.index'),
+            default => redirect()->route('login'),
         };
     })->name('dashboard');
 
@@ -55,11 +58,6 @@ Route::middleware('auth')->group(function () {
             Route::put('/manage/account/{user}', 'update')->name('manage.account.update');
             Route::delete('/manage/account/{user}', 'destroy')->name('manage.account.destroy');
         });
-
-        // Inventory Controller
-        Route::controller(InventoryController::class)->group(function () {
-            Route::get('/manage/inventory', 'index')->name('manage.inventory');
-        });
     });
 
     // Cashier Access Routes
@@ -75,6 +73,17 @@ Route::middleware('auth')->group(function () {
         // Staff Dashboard Controller
         Route::controller(StaffDashboardController::class)->group(function () {
             Route::get('/staff/dashboard', 'index')->name('staff.dashboard.index');
+        });
+    });
+
+    // Shared Route Access
+    Route::middleware('role:admin,cashier,staff')->group(function () {
+        // Inventory Controller
+        Route::controller(InventoryController::class)->group(function () {
+            Route::get('/manage/inventory', 'index')->name('manage.inventory');
+            Route::post('/manage/inventory', 'store')->name('manage.inventory.store');
+            Route::put('/manage/inventory/{product}', 'update')->name('manage.inventory.update');
+            Route::delete('/manage/inventory/{product}', 'destroy')->name('manage.inventory.destroy');
         });
     });
 });

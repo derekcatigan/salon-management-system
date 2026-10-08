@@ -12,26 +12,36 @@ class UniqueProfileName implements ValidationRule
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        // The whole profile data is on the request, so pull it directly
         $data = request()->input('profile', []);
 
-        $firstname = trim((string) ($data['firstname'] ?? ''));
-        $middlename = trim((string) ($data['middlename'] ?? ''));
-        $lastname = trim((string) ($data['lastname'] ?? ''));
-        $suffix = trim((string) ($data['suffix'] ?? ''));
+        $firstname = $this->normalize($data['firstname'] ?? '');
+        $middlename = $this->normalize($data['middlename'] ?? '');
+        $lastname = $this->normalize($data['lastname'] ?? '');
+        $suffix = $this->normalize($data['suffix'] ?? '');
+
+        // If any of the required name pieces are missing, skip — the normal
+        // validation rules will handle that.
+        if ($firstname === '' || $lastname === '') {
+            return;
+        }
 
         $query = Profile::query()
-            ->whereRaw('LOWER(firstname)  = ?', [mb_strtolower($firstname)])
-            ->whereRaw('LOWER(lastname)   = ?', [mb_strtolower($lastname)])
-            ->whereRaw("LOWER(COALESCE(middlename, '')) = ?", [mb_strtolower($middlename)])
-            ->whereRaw("LOWER(COALESCE(suffix, ''))     = ?", [mb_strtolower($suffix)]);
+            ->whereRaw('LOWER(TRIM(firstname))  = ?', [mb_strtolower($firstname)])
+            ->whereRaw('LOWER(TRIM(lastname))   = ?', [mb_strtolower($lastname)])
+            ->whereRaw("LOWER(TRIM(COALESCE(middlename, ''))) = ?", [mb_strtolower($middlename)])
+            ->whereRaw("LOWER(TRIM(COALESCE(suffix, '')))     = ?", [mb_strtolower($suffix)]);
 
         if ($this->ignoreProfileId) {
             $query->where('id', '!=', $this->ignoreProfileId);
         }
 
         if ($query->exists()) {
-            $fail('A user with the same full name already exists.');
+            $fail('A user with this full name already exists.');
         }
+    }
+
+    private function normalize(?string $value): string
+    {
+        return trim((string) $value);
     }
 }

@@ -1,219 +1,161 @@
 <!-- resources/js/Pages/Manage/ManageInventory.vue -->
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
+import { router, useForm } from "@inertiajs/vue3";
+import { toast } from "vue-sonner";
 import Layout from "@/Layouts/Layout.vue";
 
-defineOptions({
-    layout: Layout,
+defineOptions({ layout: Layout });
+
+const props = defineProps({
+    products: { type: Object, required: true }, // paginator
+    stats: { type: Object, required: true },
+    categories: { type: Array, required: true },
+    filters: { type: Object, required: true },
 });
 
 /* ------------------------------------------------------------------ */
-/* Dummy data                                                          */
+/* Filters (server-side)                                               */
 /* ------------------------------------------------------------------ */
-const products = ref([
-    {
-        id: "1",
-        sku: "HAIR-001",
-        name: "Argan Oil Shampoo",
-        category: "Hair Care",
-        brand: "LuxeCare",
-        price: 349.0,
-        cost: 210.0,
-        stock: 42,
-        reorder: 10,
-        unit: "bottle",
-        status: "active",
-        updated_at: "2026-09-28",
-    },
-    {
-        id: "2",
-        sku: "HAIR-002",
-        name: "Keratin Repair Conditioner",
-        category: "Hair Care",
-        brand: "LuxeCare",
-        price: 379.0,
-        cost: 235.0,
-        stock: 8,
-        reorder: 10,
-        unit: "bottle",
-        status: "active",
-        updated_at: "2026-09-28",
-    },
-    {
-        id: "3",
-        sku: "SKIN-001",
-        name: "Vitamin C Facial Serum",
-        category: "Skin Care",
-        brand: "GlowLab",
-        price: 599.0,
-        cost: 380.0,
-        stock: 25,
-        reorder: 8,
-        unit: "bottle",
-        status: "active",
-        updated_at: "2026-09-27",
-    },
-    {
-        id: "4",
-        sku: "NAIL-001",
-        name: "Gel Polish - Rouge Red",
-        category: "Nail Care",
-        brand: "ChromaNails",
-        price: 129.0,
-        cost: 65.0,
-        stock: 0,
-        reorder: 15,
-        unit: "bottle",
-        status: "out-of-stock",
-        updated_at: "2026-09-26",
-    },
-    {
-        id: "5",
-        sku: "NAIL-002",
-        name: "Nail Strengthener",
-        category: "Nail Care",
-        brand: "ChromaNails",
-        price: 189.0,
-        cost: 95.0,
-        stock: 33,
-        reorder: 10,
-        unit: "bottle",
-        status: "active",
-        updated_at: "2026-09-25",
-    },
-    {
-        id: "6",
-        sku: "TOOL-001",
-        name: 'Ceramic Flat Iron 1"',
-        category: "Tools",
-        brand: "ProStyle",
-        price: 1499.0,
-        cost: 950.0,
-        stock: 5,
-        reorder: 5,
-        unit: "pc",
-        status: "active",
-        updated_at: "2026-09-24",
-    },
-    {
-        id: "7",
-        sku: "SPA-001",
-        name: "Lavender Massage Oil",
-        category: "Spa",
-        brand: "AromaBliss",
-        price: 459.0,
-        cost: 270.0,
-        stock: 18,
-        reorder: 10,
-        unit: "bottle",
-        status: "active",
-        updated_at: "2026-09-23",
-    },
-    {
-        id: "8",
-        sku: "SPA-002",
-        name: "Eucalyptus Body Scrub",
-        category: "Spa",
-        brand: "AromaBliss",
-        price: 399.0,
-        cost: 240.0,
-        stock: 6,
-        reorder: 10,
-        unit: "jar",
-        status: "active",
-        updated_at: "2026-09-22",
-    },
-]);
+const search = ref(props.filters.q ?? "");
+const category = ref(props.filters.category ?? "All");
+const stockFilter = ref(props.filters.stock ?? "all");
+const sort = ref(props.filters.sort ?? "name");
+const dir = ref(props.filters.dir ?? "asc");
 
-const categories = [
-    "All",
-    "Hair Care",
-    "Skin Care",
-    "Nail Care",
-    "Spa",
-    "Tools",
-];
-
-/* ------------------------------------------------------------------ */
-/* State                                                               */
-/* ------------------------------------------------------------------ */
-const search = ref("");
-const categoryFilter = ref("All");
-const stockFilter = ref("all"); // all | low | out | in
-const sortBy = ref("name"); // name | stock | price | updated
-const sortDir = ref("asc");
-const view = ref("table"); // table | grid
-
-/* ------------------------------------------------------------------ */
-/* Derived                                                             */
-/* ------------------------------------------------------------------ */
-const filteredProducts = computed(() => {
-    let list = [...products.value];
-
-    // Search
-    const q = search.value.trim().toLowerCase();
-    if (q) {
-        list = list.filter(
-            (p) =>
-                p.name.toLowerCase().includes(q) ||
-                p.sku.toLowerCase().includes(q) ||
-                p.brand.toLowerCase().includes(q) ||
-                p.category.toLowerCase().includes(q),
+let debounce = null;
+function applyFilters() {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => {
+        router.get(
+            route("manage.inventory"),
+            {
+                q: search.value || undefined,
+                category: category.value !== "All" ? category.value : undefined,
+                stock:
+                    stockFilter.value !== "all" ? stockFilter.value : undefined,
+                sort: sort.value,
+                dir: dir.value,
+            },
+            { preserveState: true, preserveScroll: true, replace: true },
         );
-    }
+    }, 300);
+}
 
-    // Category
-    if (categoryFilter.value !== "All") {
-        list = list.filter((p) => p.category === categoryFilter.value);
-    }
+watch([search, category, stockFilter], applyFilters);
 
-    // Stock
-    if (stockFilter.value === "low") {
-        list = list.filter((p) => p.stock > 0 && p.stock <= p.reorder);
-    } else if (stockFilter.value === "out") {
-        list = list.filter((p) => p.stock === 0);
-    } else if (stockFilter.value === "in") {
-        list = list.filter((p) => p.stock > p.reorder);
+function toggleSort(field) {
+    if (sort.value === field) {
+        dir.value = dir.value === "asc" ? "desc" : "asc";
+    } else {
+        sort.value = field;
+        dir.value = "asc";
     }
+    applyFilters();
+}
 
-    // Sort
-    const dir = sortDir.value === "asc" ? 1 : -1;
-    list.sort((a, b) => {
-        let av, bv;
-        switch (sortBy.value) {
-            case "stock":
-                av = a.stock;
-                bv = b.stock;
-                break;
-            case "price":
-                av = a.price;
-                bv = b.price;
-                break;
-            case "updated":
-                av = a.updated_at;
-                bv = b.updated_at;
-                break;
-            default:
-                av = a.name.toLowerCase();
-                bv = b.name.toLowerCase();
-        }
-        if (av < bv) return -1 * dir;
-        if (av > bv) return 1 * dir;
-        return 0;
+/* ------------------------------------------------------------------ */
+/* Create / Edit modal                                                 */
+/* ------------------------------------------------------------------ */
+const showFormModal = ref(false);
+const editingProduct = ref(null);
+const processing = ref(false);
+
+const form = useForm({
+    sku: "",
+    name: "",
+    category: "",
+    brand: "",
+    price: 0,
+    cost: 0,
+    stock: 0,
+    reorder_level: 10,
+    unit: "pc",
+    description: "",
+});
+
+const isEditing = computed(() => !!editingProduct.value);
+
+function openCreateModal() {
+    editingProduct.value = null;
+    form.reset();
+    form.clearErrors();
+    showFormModal.value = true;
+}
+
+function openEditModal(product) {
+    editingProduct.value = product;
+    form.sku = product.sku;
+    form.name = product.name;
+    form.category = product.category;
+    form.brand = product.brand ?? "";
+    form.price = product.price;
+    form.cost = product.cost;
+    form.stock = product.stock;
+    form.reorder_level = product.reorder_level;
+    form.unit = product.unit;
+    form.description = product.description ?? "";
+    form.clearErrors();
+    showFormModal.value = true;
+}
+
+function closeFormModal() {
+    showFormModal.value = false;
+    editingProduct.value = null;
+    form.reset();
+    form.clearErrors();
+}
+
+function submitForm() {
+    if (isEditing.value) {
+        form.put(route("manage.inventory.update", editingProduct.value.id), {
+            preserveScroll: true,
+            onSuccess: () => closeFormModal(),
+            onError: (errors) =>
+                Object.values(errors).forEach((e) => toast.error(e)),
+        });
+    } else {
+        form.post(route("manage.inventory.store"), {
+            preserveScroll: true,
+            onSuccess: () => closeFormModal(),
+            onError: (errors) =>
+                Object.values(errors).forEach((e) => toast.error(e)),
+        });
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Delete modal                                                        */
+/* ------------------------------------------------------------------ */
+const showDeleteModal = ref(false);
+const deletingProduct = ref(null);
+const deleting = ref(false);
+
+function openDeleteModal(product) {
+    deletingProduct.value = product;
+    showDeleteModal.value = true;
+}
+
+function closeDeleteModal() {
+    showDeleteModal.value = false;
+    deletingProduct.value = null;
+}
+
+function confirmDelete() {
+    if (!deletingProduct.value) return;
+
+    deleting.value = true;
+
+    router.delete(route("manage.inventory.destroy", deletingProduct.value.id), {
+        preserveScroll: true,
+        onSuccess: () => {
+            closeDeleteModal();
+            toast.success("Product deleted.");
+        },
+        onError: () => toast.error("Failed to delete product."),
+        onFinish: () => (deleting.value = false),
     });
-
-    return list;
-});
-
-const stats = computed(() => {
-    const all = products.value;
-    return {
-        total: all.length,
-        low: all.filter((p) => p.stock > 0 && p.stock <= p.reorder).length,
-        out: all.filter((p) => p.stock === 0).length,
-        value: all.reduce((sum, p) => sum + p.cost * p.stock, 0),
-    };
-});
+}
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -229,25 +171,37 @@ function money(n) {
 }
 
 function stockBadge(p) {
-    if (p.stock === 0) return { label: "Out of stock", class: "badge-error" };
-    if (p.stock <= p.reorder)
-        return { label: "Low stock", class: "badge-warning" };
-    return { label: "In stock", class: "badge-success" };
+    if (p.stock === 0) return { label: "Out of Stock", class: "badge-error" };
+    if (p.stock <= p.reorder_level)
+        return { label: "Low Stock", class: "badge-warning" };
+    return { label: "In Stock", class: "badge-success" };
 }
 
-function toggleSort(field) {
-    if (sortBy.value === field) {
-        sortDir.value = sortDir.value === "asc" ? "desc" : "asc";
-    } else {
-        sortBy.value = field;
-        sortDir.value = "asc";
-    }
+function stockBarColor(p) {
+    if (p.stock === 0) return "bg-error";
+    if (p.stock <= p.reorder_level) return "bg-warning";
+    return "bg-success";
 }
+
+function stockBarWidth(p) {
+    const max = Math.max(p.reorder_level * 5, 1);
+    return Math.min(100, (p.stock / max) * 100) + "%";
+}
+
+/* ------------------------------------------------------------------ */
+/* Pagination links with ellipsis                                      */
+/* ------------------------------------------------------------------ */
+const paginationLinks = computed(() => {
+    const links = props.products.links ?? [];
+    // Laravel gives us: [Previous, 1, 2, ..., 8, Next]
+    // Its default rendering collapses with "...". We just style it.
+    return links;
+});
 </script>
 
 <template>
     <div class="mx-auto max-w-7xl space-y-4 p-3 sm:p-5 lg:p-6">
-        <!-- ==================== Page header ==================== -->
+        <!-- ============================ Header ============================ -->
         <div
             class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
         >
@@ -279,6 +233,7 @@ function toggleSort(field) {
                 <button
                     type="button"
                     class="btn btn-xs sm:btn-sm btn-secondary"
+                    @click="openCreateModal"
                 >
                     <svg
                         class="h-3.5 w-3.5"
@@ -294,7 +249,7 @@ function toggleSort(field) {
             </div>
         </div>
 
-        <!-- ==================== Stats cards ==================== -->
+        <!-- ============================ Stats ============================ -->
         <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <div class="rounded-xl bg-base-100/60 p-3 sm:p-4">
                 <div class="flex items-center justify-between">
@@ -365,7 +320,7 @@ function toggleSort(field) {
             <div class="rounded-xl bg-base-100/60 p-3 sm:p-4">
                 <div class="flex items-center justify-between">
                     <span class="text-[10px] font-medium uppercase opacity-60"
-                        >Inventory Value</span
+                        >Total Value</span
                     >
                     <svg
                         class="h-4 w-4 opacity-40"
@@ -385,12 +340,11 @@ function toggleSort(field) {
             </div>
         </div>
 
-        <!-- ==================== Filters / toolbar ==================== -->
+        <!-- ============================ Toolbar ============================ -->
         <div class="rounded-xl bg-base-100/60 p-3 sm:p-4">
             <div
                 class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
             >
-                <!-- Search -->
                 <div class="flex w-full items-center gap-2 lg:max-w-md">
                     <input
                         v-model="search"
@@ -400,11 +354,9 @@ function toggleSort(field) {
                     />
                 </div>
 
-                <!-- Filter row -->
                 <div class="flex flex-wrap items-center gap-2">
-                    <!-- Category -->
                     <select
-                        v-model="categoryFilter"
+                        v-model="category"
                         class="select select-sm select-bordered text-xs"
                     >
                         <option v-for="c in categories" :key="c" :value="c">
@@ -412,7 +364,6 @@ function toggleSort(field) {
                         </option>
                     </select>
 
-                    <!-- Stock -->
                     <select
                         v-model="stockFilter"
                         class="select select-sm select-bordered text-xs"
@@ -423,55 +374,24 @@ function toggleSort(field) {
                         <option value="out">Out of Stock</option>
                     </select>
 
-                    <!-- View toggle -->
-                    <div class="join">
-                        <button
-                            type="button"
-                            class="btn btn-xs sm:btn-sm join-item"
-                            :class="
-                                view === 'table' ? 'btn-neutral' : 'btn-ghost'
-                            "
-                            @click="view = 'table'"
-                        >
-                            <svg
-                                class="h-3.5 w-3.5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path d="M3 6h18M3 12h18M3 18h18" />
-                            </svg>
-                        </button>
-                        <button
-                            type="button"
-                            class="btn btn-xs sm:btn-sm join-item"
-                            :class="
-                                view === 'grid' ? 'btn-neutral' : 'btn-ghost'
-                            "
-                            @click="view = 'grid'"
-                        >
-                            <svg
-                                class="h-3.5 w-3.5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <rect x="3" y="3" width="7" height="7" />
-                                <rect x="14" y="3" width="7" height="7" />
-                                <rect x="3" y="14" width="7" height="7" />
-                                <rect x="14" y="14" width="7" height="7" />
-                            </svg>
-                        </button>
-                    </div>
+                    <select
+                        v-model="sort"
+                        class="select select-sm select-bordered text-xs"
+                        @change="applyFilters"
+                    >
+                        <option value="name">Sort: Name</option>
+                        <option value="sku">Sort: SKU</option>
+                        <option value="price">Sort: Price</option>
+                        <option value="stock">Sort: Stock</option>
+                        <option value="created_at">Sort: Newest</option>
+                    </select>
                 </div>
             </div>
         </div>
 
-        <!-- ==================== Empty state ==================== -->
+        <!-- ============================ Empty state ============================ -->
         <div
-            v-if="!filteredProducts.length"
+            v-if="!products.data.length"
             class="rounded-xl bg-base-100/60 p-10 text-center"
         >
             <svg
@@ -492,228 +412,21 @@ function toggleSort(field) {
             </p>
         </div>
 
-        <!-- ==================== Table view ==================== -->
-        <div
-            v-else-if="view === 'table'"
-            class="overflow-hidden rounded-xl bg-base-100/60"
-        >
-            <div class="overflow-x-auto">
-                <table class="table table-sm">
-                    <thead>
-                        <tr class="text-[11px] uppercase opacity-70">
-                            <th
-                                class="cursor-pointer select-none"
-                                @click="toggleSort('name')"
-                            >
-                                <div class="flex items-center gap-1">
-                                    Product
-                                    <span
-                                        v-if="sortBy === 'name'"
-                                        class="text-primary"
-                                        >{{
-                                            sortDir === "asc" ? "▲" : "▼"
-                                        }}</span
-                                    >
-                                </div>
-                            </th>
-                            <th class="hidden md:table-cell">Category</th>
-                            <th class="hidden lg:table-cell">Brand</th>
-                            <th
-                                class="cursor-pointer select-none text-right"
-                                @click="toggleSort('price')"
-                            >
-                                <div
-                                    class="flex items-center justify-end gap-1"
-                                >
-                                    Price
-                                    <span
-                                        v-if="sortBy === 'price'"
-                                        class="text-primary"
-                                        >{{
-                                            sortDir === "asc" ? "▲" : "▼"
-                                        }}</span
-                                    >
-                                </div>
-                            </th>
-                            <th
-                                class="cursor-pointer select-none text-center"
-                                @click="toggleSort('stock')"
-                            >
-                                <div
-                                    class="flex items-center justify-center gap-1"
-                                >
-                                    Stock
-                                    <span
-                                        v-if="sortBy === 'stock'"
-                                        class="text-primary"
-                                        >{{
-                                            sortDir === "asc" ? "▲" : "▼"
-                                        }}</span
-                                    >
-                                </div>
-                            </th>
-                            <th class="hidden sm:table-cell text-center">
-                                Status
-                            </th>
-                            <th class="text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr
-                            v-for="p in filteredProducts"
-                            :key="p.id"
-                            class="hover:bg-base-200/40"
-                        >
-                            <td>
-                                <div class="flex items-center gap-3">
-                                    <div
-                                        class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-semibold text-primary"
-                                    >
-                                        {{ p.name.charAt(0) }}
-                                    </div>
-                                    <div class="min-w-0">
-                                        <p class="truncate text-xs font-medium">
-                                            {{ p.name }}
-                                        </p>
-                                        <p
-                                            class="truncate text-[10px] opacity-60"
-                                        >
-                                            {{ p.sku }}
-                                        </p>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="hidden md:table-cell">
-                                <span class="badge badge-ghost badge-sm">
-                                    {{ p.category }}
-                                </span>
-                            </td>
-                            <td class="hidden lg:table-cell text-xs">
-                                {{ p.brand }}
-                            </td>
-                            <td class="text-right text-xs font-medium">
-                                {{ money(p.price) }}
-                            </td>
-                            <td class="text-center">
-                                <div
-                                    class="inline-flex flex-col items-center gap-1"
-                                >
-                                    <span class="text-xs font-semibold">
-                                        {{ p.stock }} {{ p.unit }}
-                                    </span>
-                                    <div
-                                        class="h-1 w-16 overflow-hidden rounded-full bg-base-300"
-                                    >
-                                        <div
-                                            class="h-full rounded-full transition-all"
-                                            :class="
-                                                p.stock === 0
-                                                    ? 'bg-error'
-                                                    : p.stock <= p.reorder
-                                                      ? 'bg-warning'
-                                                      : 'bg-success'
-                                            "
-                                            :style="{
-                                                width:
-                                                    Math.min(
-                                                        100,
-                                                        (p.stock /
-                                                            Math.max(
-                                                                p.reorder * 5,
-                                                                1,
-                                                            )) *
-                                                            100,
-                                                    ) + '%',
-                                            }"
-                                        ></div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="hidden sm:table-cell text-center">
-                                <span
-                                    class="badge badge-sm"
-                                    :class="stockBadge(p).class"
-                                >
-                                    {{ stockBadge(p).label }}
-                                </span>
-                            </td>
-                            <td>
-                                <div class="flex justify-end gap-1">
-                                    <button
-                                        type="button"
-                                        class="btn btn-xs btn-ghost"
-                                        title="View"
-                                    >
-                                        <svg
-                                            class="h-3.5 w-3.5"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                        >
-                                            <path
-                                                d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"
-                                            />
-                                            <circle cx="12" cy="12" r="3" />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="btn btn-xs btn-ghost"
-                                        title="Edit"
-                                    >
-                                        <svg
-                                            class="h-3.5 w-3.5"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                        >
-                                            <path
-                                                d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"
-                                            />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="btn btn-xs btn-ghost text-error"
-                                        title="Delete"
-                                    >
-                                        <svg
-                                            class="h-3.5 w-3.5"
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                        >
-                                            <path
-                                                d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
-                                            />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- ==================== Grid view ==================== -->
+        <!-- ============================ Grid ============================ -->
         <div
             v-else
             class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
         >
             <div
-                v-for="p in filteredProducts"
+                v-for="p in products.data"
                 :key="p.id"
-                class="flex flex-col rounded-xl bg-base-100/60 p-3 sm:p-4"
+                class="flex flex-col rounded-xl bg-base-100/60 p-3 sm:p-4 transition hover:shadow-md"
             >
                 <div class="flex items-start justify-between gap-2">
                     <div
                         class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-semibold text-primary"
                     >
-                        {{ p.name.charAt(0) }}
+                        {{ p.name.charAt(0).toUpperCase() }}
                     </div>
                     <span class="badge badge-sm" :class="stockBadge(p).class">
                         {{ stockBadge(p).label }}
@@ -725,11 +438,33 @@ function toggleSort(field) {
                         {{ p.name }}
                     </h3>
                     <p class="mt-0.5 truncate text-[10px] opacity-60">
-                        {{ p.sku }} · {{ p.brand }}
+                        {{ p.sku }}
+                        <span v-if="p.brand"> · {{ p.brand }}</span>
                     </p>
                     <span class="mt-2 inline-block badge badge-ghost badge-sm">
                         {{ p.category }}
                     </span>
+                </div>
+
+                <div class="mt-3">
+                    <div
+                        class="flex items-center justify-between text-[10px] opacity-60"
+                    >
+                        <span>Stock</span>
+                        <span
+                            >{{ p.stock }} {{ p.unit }} · reorder at
+                            {{ p.reorder_level }}</span
+                        >
+                    </div>
+                    <div
+                        class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-base-300"
+                    >
+                        <div
+                            class="h-full rounded-full transition-all"
+                            :class="stockBarColor(p)"
+                            :style="{ width: stockBarWidth(p) }"
+                        ></div>
+                    </div>
                 </div>
 
                 <div class="mt-3 flex items-end justify-between gap-2">
@@ -738,10 +473,8 @@ function toggleSort(field) {
                         <p class="text-sm font-bold">{{ money(p.price) }}</p>
                     </div>
                     <div class="text-right">
-                        <p class="text-[10px] uppercase opacity-60">Stock</p>
-                        <p class="text-sm font-semibold">
-                            {{ p.stock }} {{ p.unit }}
-                        </p>
+                        <p class="text-[10px] uppercase opacity-60">Cost</p>
+                        <p class="text-xs">{{ money(p.cost) }}</p>
                     </div>
                 </div>
 
@@ -750,25 +483,8 @@ function toggleSort(field) {
                         <button
                             type="button"
                             class="btn btn-xs btn-ghost"
-                            title="View"
-                        >
-                            <svg
-                                class="h-3.5 w-3.5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path
-                                    d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"
-                                />
-                                <circle cx="12" cy="12" r="3" />
-                            </svg>
-                        </button>
-                        <button
-                            type="button"
-                            class="btn btn-xs btn-ghost"
                             title="Edit"
+                            @click="openEditModal(p)"
                         >
                             <svg
                                 class="h-3.5 w-3.5"
@@ -781,11 +497,13 @@ function toggleSort(field) {
                                     d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"
                                 />
                             </svg>
+                            Edit
                         </button>
                         <button
                             type="button"
                             class="btn btn-xs btn-ghost text-error"
                             title="Delete"
+                            @click="openDeleteModal(p)"
                         >
                             <svg
                                 class="h-3.5 w-3.5"
@@ -798,34 +516,379 @@ function toggleSort(field) {
                                     d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
                                 />
                             </svg>
+                            Delete
                         </button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- ==================== Footer / pagination stub ==================== -->
+        <!-- ============================ Pagination ============================ -->
         <div
-            v-if="filteredProducts.length"
+            v-if="products.data.length"
             class="flex flex-col items-center justify-between gap-3 rounded-xl bg-base-100/60 p-3 text-xs sm:flex-row sm:p-4"
         >
             <p class="opacity-60">
                 Showing
-                <span class="font-medium">{{ filteredProducts.length }}</span>
+                <span class="font-medium">{{ products.from }}</span>
+                to
+                <span class="font-medium">{{ products.to }}</span>
                 of
-                <span class="font-medium">{{ products.length }}</span>
+                <span class="font-medium">{{ products.total }}</span>
                 products
             </p>
 
             <div class="join">
-                <button class="btn btn-xs sm:btn-sm join-item" disabled>
-                    «
-                </button>
-                <button class="btn btn-xs sm:btn-sm join-item btn-active">
-                    1
-                </button>
-                <button class="btn btn-xs sm:btn-sm join-item">»</button>
+                <template v-for="(link, i) in products.links" :key="i">
+                    <!-- Ellipsis -->
+                    <button
+                        v-if="link.label === '...'"
+                        class="btn btn-xs sm:btn-sm join-item btn-disabled"
+                    >
+                        …
+                    </button>
+
+                    <!-- Previous / Next -->
+                    <button
+                        v-else-if="i === 0"
+                        class="btn btn-xs sm:btn-sm join-item"
+                        :class="{ 'btn-disabled': !link.url }"
+                        :disabled="!link.url"
+                        @click="
+                            link.url &&
+                            router.visit(link.url, { preserveScroll: true })
+                        "
+                    >
+                        «
+                    </button>
+                    <button
+                        v-else-if="i === products.links.length - 1"
+                        class="btn btn-xs sm:btn-sm join-item"
+                        :class="{ 'btn-disabled': !link.url }"
+                        :disabled="!link.url"
+                        @click="
+                            link.url &&
+                            router.visit(link.url, { preserveScroll: true })
+                        "
+                    >
+                        »
+                    </button>
+
+                    <!-- Numbered pages -->
+                    <button
+                        v-else
+                        class="btn btn-xs sm:btn-sm join-item"
+                        :class="{ 'btn-active': link.active }"
+                        :disabled="!link.url"
+                        @click="
+                            link.url &&
+                            router.visit(link.url, { preserveScroll: true })
+                        "
+                    >
+                        {{ link.label }}
+                    </button>
+                </template>
             </div>
         </div>
     </div>
+
+    <!-- ============================ Create / Edit Modal ============================ -->
+    <dialog class="modal" :class="{ 'modal-open': showFormModal }">
+        <div
+            class="modal-box w-11/12 max-w-2xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
+        >
+            <div class="flex items-center justify-between mb-1">
+                <h3 class="text-sm font-bold flex items-center gap-2">
+                    <span
+                        class="badge badge-xs"
+                        :class="isEditing ? 'badge-primary' : 'badge-secondary'"
+                    ></span>
+                    {{ isEditing ? "Edit Product" : "Add New Product" }}
+                </h3>
+                <button
+                    type="button"
+                    class="btn btn-xs btn-circle btn-ghost"
+                    @click="closeFormModal"
+                >
+                    ✕
+                </button>
+            </div>
+            <div class="divider my-1"></div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div class="form-control sm:col-span-2">
+                    <label class="label py-0.5"
+                        ><span class="label-text text-xs"
+                            >Product Name</span
+                        ></label
+                    >
+                    <input
+                        v-model="form.name"
+                        type="text"
+                        class="input input-sm input-bordered w-full text-xs"
+                        :class="{ 'input-error': form.errors.name }"
+                        placeholder="e.g. Argan Oil Shampoo 250ml"
+                    />
+                    <label v-if="form.errors.name" class="label py-0.5">
+                        <span class="label-text-alt text-[10px] text-error">{{
+                            form.errors.name
+                        }}</span>
+                    </label>
+                </div>
+
+                <div class="form-control">
+                    <label class="label py-0.5"
+                        ><span class="label-text text-xs">SKU</span></label
+                    >
+                    <input
+                        v-model="form.sku"
+                        type="text"
+                        class="input input-sm input-bordered w-full text-xs"
+                        :class="{ 'input-error': form.errors.sku }"
+                        placeholder="HAIR-001"
+                    />
+                    <label v-if="form.errors.sku" class="label py-0.5">
+                        <span class="label-text-alt text-[10px] text-error">{{
+                            form.errors.sku
+                        }}</span>
+                    </label>
+                </div>
+
+                <div class="form-control">
+                    <label class="label py-0.5"
+                        ><span class="label-text text-xs">Category</span></label
+                    >
+                    <select
+                        v-model="form.category"
+                        class="select select-sm select-bordered w-full text-xs"
+                        :class="{ 'select-error': form.errors.category }"
+                    >
+                        <option value="" disabled>Select category</option>
+                        <option
+                            v-for="c in categories.filter((c) => c !== 'All')"
+                            :key="c"
+                            :value="c"
+                        >
+                            {{ c }}
+                        </option>
+                    </select>
+                    <label v-if="form.errors.category" class="label py-0.5">
+                        <span class="label-text-alt text-[10px] text-error">{{
+                            form.errors.category
+                        }}</span>
+                    </label>
+                </div>
+
+                <div class="form-control">
+                    <label class="label py-0.5"
+                        ><span class="label-text text-xs">Brand</span></label
+                    >
+                    <input
+                        v-model="form.brand"
+                        type="text"
+                        class="input input-sm input-bordered w-full text-xs"
+                        :class="{ 'input-error': form.errors.brand }"
+                        placeholder="Optional"
+                    />
+                </div>
+
+                <div class="form-control">
+                    <label class="label py-0.5"
+                        ><span class="label-text text-xs">Unit</span></label
+                    >
+                    <input
+                        v-model="form.unit"
+                        type="text"
+                        class="input input-sm input-bordered w-full text-xs"
+                        :class="{ 'input-error': form.errors.unit }"
+                        placeholder="pc, bottle, jar…"
+                    />
+                </div>
+
+                <div class="form-control">
+                    <label class="label py-0.5"
+                        ><span class="label-text text-xs"
+                            >Price (₱)</span
+                        ></label
+                    >
+                    <input
+                        v-model.number="form.price"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        class="input input-sm input-bordered w-full text-xs"
+                        :class="{ 'input-error': form.errors.price }"
+                    />
+                    <label v-if="form.errors.price" class="label py-0.5">
+                        <span class="label-text-alt text-[10px] text-error">{{
+                            form.errors.price
+                        }}</span>
+                    </label>
+                </div>
+
+                <div class="form-control">
+                    <label class="label py-0.5"
+                        ><span class="label-text text-xs">Cost (₱)</span></label
+                    >
+                    <input
+                        v-model.number="form.cost"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        class="input input-sm input-bordered w-full text-xs"
+                        :class="{ 'input-error': form.errors.cost }"
+                    />
+                    <label v-if="form.errors.cost" class="label py-0.5">
+                        <span class="label-text-alt text-[10px] text-error">{{
+                            form.errors.cost
+                        }}</span>
+                    </label>
+                </div>
+
+                <div class="form-control">
+                    <label class="label py-0.5"
+                        ><span class="label-text text-xs">Stock</span></label
+                    >
+                    <input
+                        v-model.number="form.stock"
+                        type="number"
+                        min="0"
+                        class="input input-sm input-bordered w-full text-xs"
+                        :class="{ 'input-error': form.errors.stock }"
+                    />
+                    <label v-if="form.errors.stock" class="label py-0.5">
+                        <span class="label-text-alt text-[10px] text-error">{{
+                            form.errors.stock
+                        }}</span>
+                    </label>
+                </div>
+
+                <div class="form-control">
+                    <label class="label py-0.5"
+                        ><span class="label-text text-xs"
+                            >Reorder Level</span
+                        ></label
+                    >
+                    <input
+                        v-model.number="form.reorder_level"
+                        type="number"
+                        min="0"
+                        class="input input-sm input-bordered w-full text-xs"
+                        :class="{ 'input-error': form.errors.reorder_level }"
+                    />
+                    <label
+                        v-if="form.errors.reorder_level"
+                        class="label py-0.5"
+                    >
+                        <span class="label-text-alt text-[10px] text-error">{{
+                            form.errors.reorder_level
+                        }}</span>
+                    </label>
+                </div>
+
+                <div class="form-control sm:col-span-2">
+                    <label class="label py-0.5"
+                        ><span class="label-text text-xs"
+                            >Description</span
+                        ></label
+                    >
+                    <textarea
+                        v-model="form.description"
+                        rows="2"
+                        class="textarea textarea-sm textarea-bordered w-full text-xs"
+                        placeholder="Optional notes about this product…"
+                    ></textarea>
+                </div>
+            </div>
+
+            <div class="modal-action mt-4">
+                <button
+                    type="button"
+                    class="btn btn-xs sm:btn-sm btn-ghost"
+                    @click="closeFormModal"
+                >
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    class="btn btn-xs sm:btn-sm"
+                    :class="isEditing ? 'btn-primary' : 'btn-secondary'"
+                    :disabled="form.processing"
+                    @click="submitForm"
+                >
+                    <span
+                        v-if="form.processing"
+                        class="loading loading-spinner loading-xs"
+                    ></span>
+                    {{ isEditing ? "Save Changes" : "Add Product" }}
+                </button>
+            </div>
+        </div>
+
+        <form method="dialog" class="modal-backdrop">
+            <button @click="closeFormModal">close</button>
+        </form>
+    </dialog>
+
+    <!-- ============================ Delete Modal ============================ -->
+    <dialog class="modal" :class="{ 'modal-open': showDeleteModal }">
+        <div class="modal-box w-11/12 max-w-md p-4 sm:p-6">
+            <div class="flex items-start gap-3">
+                <div
+                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-error/10 text-error"
+                >
+                    <svg
+                        class="h-5 w-5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <path
+                            d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+                        />
+                    </svg>
+                </div>
+
+                <div class="flex-1">
+                    <h3 class="text-base font-bold">Delete this product?</h3>
+                    <p class="mt-1 text-xs opacity-70">
+                        You are about to permanently delete
+                        <span class="font-semibold">{{
+                            deletingProduct?.name
+                        }}</span>
+                        ({{ deletingProduct?.sku }}). This action cannot be
+                        undone.
+                    </p>
+                </div>
+            </div>
+
+            <div class="modal-action mt-5">
+                <button
+                    type="button"
+                    class="btn btn-xs sm:btn-sm btn-ghost"
+                    :disabled="deleting"
+                    @click="closeDeleteModal"
+                >
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    class="btn btn-xs sm:btn-sm btn-error"
+                    :disabled="deleting"
+                    @click="confirmDelete"
+                >
+                    <span
+                        v-if="deleting"
+                        class="loading loading-spinner loading-xs"
+                    ></span>
+                    Yes, delete
+                </button>
+            </div>
+        </div>
+
+        <form method="dialog" class="modal-backdrop">
+            <button @click="closeDeleteModal">close</button>
+        </form>
+    </dialog>
 </template>

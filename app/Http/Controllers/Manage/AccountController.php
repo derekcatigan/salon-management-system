@@ -127,7 +127,6 @@ class AccountController extends Controller
      */
     private function rules(?string $ignoreUserId = null, ?string $ignoreProfileId = null): array
     {
-        // For updates, ignore the current record on unique checks
         $emailUnique = $ignoreUserId
             ? Rule::unique('users', 'email')->ignore($ignoreUserId)
             : Rule::unique('users', 'email');
@@ -150,10 +149,10 @@ class AccountController extends Controller
             'profile.address' => ['nullable', 'string', 'max:255'],
         ];
 
-        // Only enforce the duplicate name rule on the four name fields together
-        $rules['profile.firstname'][] = new UniqueProfileName($ignoreProfileId);
+        // Full-name uniqueness (first + middle + last + suffix)
+        $rules['profile.lastname'][] = new UniqueProfileName($ignoreProfileId);
 
-        // Password rules only apply on create
+        // Password only on create
         if (! $ignoreUserId) {
             $rules['password'] = ['required', 'string', 'min:8', 'confirmed', 'max:255'];
         }

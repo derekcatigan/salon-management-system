@@ -48,5 +48,42 @@ export const SidebarLinks = {
                 },
             ],
         },
+        {
+            category: "Management",
+            links: [
+                {
+                    label: "Manage Inventory",
+                    link: "/manage/inventory",
+                    icon: "hgi hgi-stroke hgi-rounded hgi-catalogue",
+                },
+            ],
+        },
+    ],
+    staff: [
+        {
+            category: "Main",
+            links: [
+                {
+                    label: "Dashboard",
+                    link: "/staff/dashboard",
+                    icon: "hgi hgi-stroke hgi-rounded hgi-dashboard-square-03",
+                },
+                {
+                    label: "Reports",
+                    link: "",
+                    icon: "hgi hgi-stroke hgi-rounded hgi-newspaper",
+                },
+            ],
+        },
+        {
+            category: "Management",
+            links: [
+                {
+                    label: "Manage Inventory",
+                    link: "/manage/inventory",
+                    icon: "hgi hgi-stroke hgi-rounded hgi-catalogue",
+                },
+            ],
+        },
     ],
 };
