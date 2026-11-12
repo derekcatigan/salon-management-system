@@ -21,8 +21,10 @@
         "@inertiajs/vite": "^3.7.1",
         "@inertiajs/vue3": "^3.7.1",
         "@vitejs/plugin-vue": "^6.0.9",
+        "chart.js": "^4.5.1",
         "es-toolkit": "^1.52.0",
         "vue": "^3.5.43",
+        "vue-chartjs": "^5.3.4",
         "vue-sonner": "^2.0.9"
     }
 }

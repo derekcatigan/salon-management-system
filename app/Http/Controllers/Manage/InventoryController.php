@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Rules\UniqueProductIdentity;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -80,6 +81,10 @@ class InventoryController extends Controller
 
     public function store(Request $request)
     {
+        if (Auth::user()->role->value !== 'admin') {
+            abort(403, 'Only admins can create products.');
+        }
+
         $data = $request->validate($this->rules(), [], $this->attributes());
 
         $data = $this->normalize($data);
@@ -102,6 +107,39 @@ class InventoryController extends Controller
         $product->update($data);
 
         return back()->with('success', 'Product updated successfully.');
+    }
+
+    public function adjustStock(Request $request, Product $product)
+    {
+        $data = $request->validate([
+            'direction' => ['required', 'in:add,subtract'],
+            'quantity' => ['required', 'integer', 'min:1', 'max:999999'],
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $direction = $data['direction'];
+        $quantity = (int) $data['quantity'];
+
+        // Prevent negative stock
+        if ($direction === 'subtract' && $quantity > $product->stock) {
+            return back()->withErrors([
+                'quantity' => "Cannot subtract {$quantity} — only {$product->stock} {$product->unit} in stock.",
+            ]);
+        }
+
+        $newStock = $direction === 'add'
+            ? $product->stock + $quantity
+            : $product->stock - $quantity;
+
+        $product->update(['stock' => $newStock]);
+
+        $label = $direction === 'add' ? 'Added' : 'Removed';
+        $preposition = $direction === 'add' ? 'to' : 'from';
+
+        return back()->with(
+            'success',
+            "{$label} {$quantity} {$product->unit}(s) {$preposition} {$product->name}. New stock: {$newStock}.",
+        );
     }
 
     public function destroy(Product $product)

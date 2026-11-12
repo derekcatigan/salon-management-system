@@ -29,6 +29,11 @@ export const SidebarLinks = {
                     link: "/manage/inventory",
                     icon: "hgi hgi-stroke hgi-rounded hgi-catalogue",
                 },
+                {
+                    label: "Manage Services",
+                    link: "/manage/services",
+                    icon: "hgi hgi-stroke hgi-rounded hgi-body-soap",
+                },
             ],
         },
     ],
@@ -43,7 +48,7 @@ export const SidebarLinks = {
                 },
                 {
                     label: "Reports",
-                    link: "",
+                    link: "/cashier/teller/report",
                     icon: "hgi hgi-stroke hgi-rounded hgi-newspaper",
                 },
             ],
@@ -52,9 +57,9 @@ export const SidebarLinks = {
             category: "Management",
             links: [
                 {
-                    label: "Manage Inventory",
-                    link: "/manage/inventory",
-                    icon: "hgi hgi-stroke hgi-rounded hgi-catalogue",
+                    label: "Teller",
+                    link: "/cashier/teller",
+                    icon: "hgi hgi-stroke hgi-rounded hgi-hand-coins",
                 },
             ],
         },

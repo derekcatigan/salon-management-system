@@ -1,14 +1,17 @@
 <!-- resources/js/Pages/Manage/ManageInventory.vue -->
 <script setup>
 import { ref, computed, watch } from "vue";
-import { router, useForm } from "@inertiajs/vue3";
+import { router, useForm, usePage } from "@inertiajs/vue3";
 import { toast } from "vue-sonner";
 import Layout from "@/Layouts/Layout.vue";
 
 defineOptions({ layout: Layout });
 
+const page = usePage();
+const isAdmin = computed(() => page.props.auth?.role === "Admin");
+
 const props = defineProps({
-    products: { type: Object, required: true }, // paginator
+    products: { type: Object, required: true },
     stats: { type: Object, required: true },
     categories: { type: Array, required: true },
     filters: { type: Object, required: true },
@@ -158,6 +161,74 @@ function confirmDelete() {
 }
 
 /* ------------------------------------------------------------------ */
+/* Stock adjustment modal                                              */
+/* ------------------------------------------------------------------ */
+const showAdjustModal = ref(false);
+const adjustingProduct = ref(null);
+const adjustDirection = ref("add");
+const adjustQuantity = ref(1);
+const adjustReason = ref("");
+const adjusting = ref(false);
+
+function openAdjustModal(product, direction) {
+    adjustingProduct.value = product;
+    adjustDirection.value = direction;
+    adjustQuantity.value = 1;
+    adjustReason.value = "";
+    showAdjustModal.value = true;
+}
+
+function closeAdjustModal() {
+    showAdjustModal.value = false;
+    adjustingProduct.value = null;
+    adjustQuantity.value = 1;
+    adjustReason.value = "";
+}
+
+function submitAdjust() {
+    if (!adjustingProduct.value) return;
+    if (!adjustQuantity.value || adjustQuantity.value < 1) {
+        toast.error("Enter a quantity of at least 1.");
+        return;
+    }
+
+    if (
+        adjustDirection.value === "subtract" &&
+        adjustQuantity.value > adjustingProduct.value.stock
+    ) {
+        toast.error(
+            `Only ${adjustingProduct.value.stock} ${adjustingProduct.value.unit} in stock.`,
+        );
+        return;
+    }
+
+    adjusting.value = true;
+
+    router.post(
+        route("manage.inventory.adjust", adjustingProduct.value.id),
+        {
+            direction: adjustDirection.value,
+            quantity: adjustQuantity.value,
+            reason: adjustReason.value || null,
+        },
+        {
+            preserveScroll: true,
+            onSuccess: () => {
+                closeAdjustModal();
+            },
+            onError: (errors) => {
+                Object.values(errors).forEach((e) => toast.error(e));
+            },
+            onFinish: () => (adjusting.value = false),
+        },
+    );
+}
+
+const adjustLabel = computed(() =>
+    adjustDirection.value === "add" ? "Add Stock" : "Remove Stock",
+);
+
+/* ------------------------------------------------------------------ */
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
 function money(n) {
@@ -193,8 +264,6 @@ function stockBarWidth(p) {
 /* ------------------------------------------------------------------ */
 const paginationLinks = computed(() => {
     const links = props.products.links ?? [];
-    // Laravel gives us: [Previous, 1, 2, ..., 8, Next]
-    // Its default rendering collapses with "...". We just style it.
     return links;
 });
 </script>
@@ -231,6 +300,7 @@ const paginationLinks = computed(() => {
                 </button>
 
                 <button
+                    v-if="isAdmin"
                     type="button"
                     class="btn btn-xs sm:btn-sm btn-secondary"
                     @click="openCreateModal"
@@ -479,45 +549,83 @@ const paginationLinks = computed(() => {
                 </div>
 
                 <div class="mt-3 border-t border-base-200/70 pt-3">
-                    <div class="flex justify-end gap-1">
-                        <button
-                            type="button"
-                            class="btn btn-xs btn-ghost"
-                            title="Edit"
-                            @click="openEditModal(p)"
-                        >
-                            <svg
-                                class="h-3.5 w-3.5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
+                    <div class="flex items-center justify-between gap-2">
+                        <!-- Quick stock adjust -->
+                        <div class="join">
+                            <button
+                                type="button"
+                                class="btn btn-xs join-item btn-error btn-outline"
+                                title="Subtract stock"
+                                :disabled="p.stock === 0"
+                                @click="openAdjustModal(p, 'subtract')"
                             >
-                                <path
-                                    d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"
-                                />
-                            </svg>
-                            Edit
-                        </button>
-                        <button
-                            type="button"
-                            class="btn btn-xs btn-ghost text-error"
-                            title="Delete"
-                            @click="openDeleteModal(p)"
-                        >
-                            <svg
-                                class="h-3.5 w-3.5"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
+                                <svg
+                                    class="h-3.5 w-3.5"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path d="M5 12h14" />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                class="btn btn-xs join-item btn-success btn-outline"
+                                title="Add stock"
+                                @click="openAdjustModal(p, 'add')"
                             >
-                                <path
-                                    d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
-                                />
-                            </svg>
-                            Delete
-                        </button>
+                                <svg
+                                    class="h-3.5 w-3.5"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path d="M12 5v14M5 12h14" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <!-- Edit / Delete -->
+                        <div class="flex gap-1">
+                            <button
+                                type="button"
+                                class="btn btn-xs btn-ghost"
+                                title="Edit"
+                                @click="openEditModal(p)"
+                            >
+                                <svg
+                                    class="h-3.5 w-3.5"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"
+                                    />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                class="btn btn-xs btn-ghost text-error"
+                                title="Delete"
+                                @click="openDeleteModal(p)"
+                            >
+                                <svg
+                                    class="h-3.5 w-3.5"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -889,6 +997,156 @@ const paginationLinks = computed(() => {
 
         <form method="dialog" class="modal-backdrop">
             <button @click="closeDeleteModal">close</button>
+        </form>
+    </dialog>
+
+    <!-- ============================ Stock Adjustment Modal ============================ -->
+    <dialog class="modal" :class="{ 'modal-open': showAdjustModal }">
+        <div class="modal-box w-11/12 max-w-md p-4 sm:p-6">
+            <div class="flex items-center justify-between mb-1">
+                <h3 class="text-sm font-bold flex items-center gap-2">
+                    <span
+                        class="badge badge-xs"
+                        :class="
+                            adjustDirection === 'add'
+                                ? 'badge-success'
+                                : 'badge-error'
+                        "
+                    ></span>
+                    {{ adjustLabel }}
+                </h3>
+                <button
+                    type="button"
+                    class="btn btn-xs btn-circle btn-ghost"
+                    @click="closeAdjustModal"
+                >
+                    ✕
+                </button>
+            </div>
+            <div class="divider my-1"></div>
+
+            <!-- Product summary -->
+            <div class="rounded-lg bg-base-200/40 p-3">
+                <p class="text-xs font-semibold">
+                    {{ adjustingProduct?.name }}
+                </p>
+                <p class="text-[10px] opacity-60">
+                    {{ adjustingProduct?.sku }}
+                    <span v-if="adjustingProduct?.brand">
+                        · {{ adjustingProduct.brand }}</span
+                    >
+                </p>
+                <div class="mt-2 flex items-center justify-between text-xs">
+                    <span class="opacity-60">Current stock</span>
+                    <span class="font-semibold">
+                        {{ adjustingProduct?.stock }}
+                        {{ adjustingProduct?.unit }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Quantity input -->
+            <div class="form-control mt-3">
+                <label class="label py-0.5">
+                    <span class="label-text text-xs">
+                        Quantity to
+                        {{ adjustDirection === "add" ? "add" : "remove" }}
+                    </span>
+                </label>
+                <input
+                    v-model.number="adjustQuantity"
+                    type="number"
+                    min="1"
+                    :max="
+                        adjustDirection === 'subtract'
+                            ? (adjustingProduct?.stock ?? 1)
+                            : undefined
+                    "
+                    class="input input-sm input-bordered w-full text-sm font-bold"
+                />
+                <label class="label py-0.5">
+                    <span class="label-text-alt text-[10px] opacity-60">
+                        {{
+                            adjustDirection === "add"
+                                ? "Will be added to current stock"
+                                : "Will be deducted from current stock"
+                        }}
+                    </span>
+                </label>
+            </div>
+
+            <!-- Preview new stock -->
+            <div
+                class="mt-3 flex items-center justify-between rounded-lg bg-base-200/40 px-3 py-2 text-sm"
+            >
+                <span class="opacity-70">New stock after adjustment</span>
+                <span
+                    class="font-bold"
+                    :class="
+                        adjustDirection === 'add'
+                            ? 'text-success'
+                            : 'text-error'
+                    "
+                >
+                    {{
+                        Math.max(
+                            0,
+                            (adjustingProduct?.stock ?? 0) +
+                                (adjustDirection === "add"
+                                    ? adjustQuantity || 0
+                                    : -(adjustQuantity || 0)),
+                        )
+                    }}
+                    {{ adjustingProduct?.unit }}
+                </span>
+            </div>
+
+            <!-- Optional reason -->
+            <div class="form-control mt-3">
+                <label class="label py-0.5">
+                    <span class="label-text text-xs">Reason (optional)</span>
+                </label>
+                <input
+                    v-model="adjustReason"
+                    type="text"
+                    class="input input-sm input-bordered w-full text-xs"
+                    :placeholder="
+                        adjustDirection === 'add'
+                            ? 'e.g. Received from supplier'
+                            : 'e.g. Sold at counter, damaged, expired'
+                    "
+                />
+            </div>
+
+            <div class="modal-action mt-4">
+                <button
+                    type="button"
+                    class="btn btn-xs sm:btn-sm btn-ghost"
+                    :disabled="adjusting"
+                    @click="closeAdjustModal"
+                >
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    class="btn btn-xs sm:btn-sm"
+                    :class="
+                        adjustDirection === 'add' ? 'btn-success' : 'btn-error'
+                    "
+                    :disabled="adjusting"
+                    @click="submitAdjust"
+                >
+                    <span
+                        v-if="adjusting"
+                        class="loading loading-spinner loading-xs"
+                    ></span>
+                    Confirm
+                </button>
+            </div>
+        </div>
+
+        <form method="dialog" class="modal-backdrop">
+            <button @click="closeAdjustModal">close</button>
         </form>
     </dialog>
 </template>
