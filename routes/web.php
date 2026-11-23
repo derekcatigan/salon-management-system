@@ -1,19 +1,35 @@
 <?php
 
 use App\Enum\RoleEnum;
+use App\Http\Controllers\Appointment\AppointmentController;
+use App\Http\Controllers\Appointment\AppointmentHistoryController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Dashboard\AdminDashboardController;
 use App\Http\Controllers\Dashboard\CashierDashboardController;
 use App\Http\Controllers\Dashboard\StaffDashboardController;
 use App\Http\Controllers\Manage\AccountController;
+use App\Http\Controllers\Manage\BookingController;
 use App\Http\Controllers\Manage\InventoryController;
+use App\Http\Controllers\Manage\ScheduleController;
 use App\Http\Controllers\Manage\ServiceController;
 use App\Http\Controllers\Teller\TellerController;
 use App\Http\Controllers\Teller\TellerReportController;
+use App\Http\Controllers\Website\AuthWebController;
 use App\Http\Controllers\Website\HomeWebController;
+use App\Http\Controllers\Website\RegisterWebController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+
+// Website Routes
+Route::controller(HomeWebController::class)->group(function () {
+    Route::get('/', 'index')->name('web.home');
+});
+
+// Appointment Routes
+Route::controller(AppointmentController::class)->group(function () {
+    Route::get('/mi-bella-la-vida/book-appointment', 'index')->name('appointment.web.index');
+});
 
 Route::middleware('guest')->group(function () {
     Route::controller(AuthController::class)->group(function () {
@@ -22,9 +38,16 @@ Route::middleware('guest')->group(function () {
         Route::get('/login/throttle', 'throttleStatus')->name('auth.throttle');
     });
 
-    // Website Routes
-    Route::controller(HomeWebController::class)->group(function () {
-        Route::get('/', 'index')->name('web.home');
+    // Login Web Route
+    Route::controller(AuthWebController::class)->group(function () {
+        Route::get('/mi-bella-la-vida/login', 'index')->name('auth.web.index');
+        Route::post('/mi-bella-la-vida/login', 'store')->name('auth.web.login');
+    });
+
+    // Register Web Routes
+    Route::controller(RegisterWebController::class)->group(function () {
+        Route::get('/mi-bella-la-vida/register', 'index')->name('register.web.index');
+        Route::post('/mi-bella-la-vida/register', 'store')->name('register.web.store');
     });
 });
 
@@ -35,8 +58,8 @@ Route::middleware('auth')->group(function () {
 
         return match ($role) {
             RoleEnum::Admin => redirect()->route('admin.dashboard.index'),
-            RoleEnum::Cashier => redirect()->route('cashier.dashboard.index'),
             RoleEnum::Staff => redirect()->route('staff.dashboard.index'),
+            RoleEnum::Customer => redirect()->route('web.home'),
             default => redirect()->route('login'),
         };
     })->name('dashboard');
@@ -51,6 +74,16 @@ Route::middleware('auth')->group(function () {
 
         return redirect()->route('login');
     });
+
+    // Customer logout (redirects to website login)
+    Route::post('/mi-bella-la-vida/logout', function (Request $request) {
+        Auth::logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        $request->session()->forget('url.intended');
+
+        return redirect()->route('auth.web.index');
+    })->name('auth.web.logout');
 
     // Admin Access Routes
     Route::middleware('role:admin')->group(function () {
@@ -82,8 +115,13 @@ Route::middleware('auth')->group(function () {
         });
     });
 
-    // Cashier Access Routes
-    Route::middleware('role:cashier')->group(function () {
+    // Staff Access Routes
+    Route::middleware('role:staff')->group(function () {
+        // Staff Dashboard Controller
+        Route::controller(StaffDashboardController::class)->group(function () {
+            Route::get('/staff/dashboard', 'index')->name('staff.dashboard.index');
+        });
+
         // Cashier Dashboard Controller
         Route::controller(CashierDashboardController::class)->group(function () {
             Route::get('/cashier/dashboard', 'index')->name('cashier.dashboard.index');
@@ -106,14 +144,6 @@ Route::middleware('auth')->group(function () {
         });
     });
 
-    // Staff Access Routes
-    Route::middleware('role:staff')->group(function () {
-        // Staff Dashboard Controller
-        Route::controller(StaffDashboardController::class)->group(function () {
-            Route::get('/staff/dashboard', 'index')->name('staff.dashboard.index');
-        });
-    });
-
     // Shared Route Access (Admin & Staff)
     Route::middleware('role:admin,staff')->group(function () {
         // Inventory Controller
@@ -123,8 +153,30 @@ Route::middleware('auth')->group(function () {
             Route::delete('/manage/inventory/{product}', 'destroy')->name('manage.inventory.destroy');
             Route::post('/manage/inventory/{product}/adjust', 'adjustStock')->name('manage.inventory.adjust');
         });
+
+        // Manage Schedule Controller
+        Route::controller(ScheduleController::class)->group(function () {
+            Route::get('/manage/booking-schedule', 'index')->name('manage.schedule.index');
+            Route::post('/manage/booking-schedule/toggle', 'toggle')->name('manage.schedule.toggle');
+            Route::post('/manage/booking-schedule/bulk', 'bulk')->name('manage.schedule.bulk');
+        });
+
+        // Manage Booking Controller
+        Route::controller(BookingController::class)->group(function () {
+            Route::get('/manage/booking', 'index')->name('manage.booking.index');
+            Route::patch('/manage/booking/{booking}/status', 'updateStatus')->name('manage.booking.status');
+        });
     });
 
-    // Shared Route Access
-    Route::middleware('role:admin,cashier,staff')->group(function () {});
+    // Website Appointment Booking Routes
+    Route::middleware('role:customer')->group(function () {
+        Route::post('/mi-bella-la-vida/book-appointment', [AppointmentController::class, 'store'])
+            ->name('appointment.web.store');
+
+        // Appointment History Controller
+        Route::controller(AppointmentHistoryController::class)->group(function () {
+            Route::get('/mi-bella-la-vida/view-appointment-history', 'index')->name('appointment.history.index');
+        });
+
+    });
 });

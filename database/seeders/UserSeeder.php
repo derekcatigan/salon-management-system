@@ -22,13 +22,6 @@ class UserSeeder extends Seeder
         ]);
 
         User::create([
-            'email' => 'cashier@email.com',
-            'role' => RoleEnum::Cashier->value,
-            'status' => 'active',
-            'password' => Hash::make('password'),
-        ]);
-
-        User::create([
             'email' => 'staff@email.com',
             'role' => RoleEnum::Staff->value,
             'status' => 'active',

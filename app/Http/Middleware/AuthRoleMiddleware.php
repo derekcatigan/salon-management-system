@@ -18,7 +18,7 @@ class AuthRoleMiddleware
     {
         // Redirect unauthorized users to login page
         if (! Auth::check()) {
-            return redirect()->route('login');
+            return redirect()->route('web.home');
         }
 
         $user = Auth::user();
